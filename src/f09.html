@@ -1,0 +1,223 @@
+
+<script>
+// ============================================================
+// AIRFLOW FIELD
+// Raw WebGL. Thousands of silk streamlines through a curl-like
+// flow field. Pointer acts as a magnetic pole bending the air.
+// Progressive enhancement: no JS / no WebGL / reduced-motion
+// = clean static poster. Zero libraries. Zero external assets.
+// ============================================================
+(function(){
+'use strict';
+if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+var canvas = document.getElementById('air');
+if (!canvas) return;
+var gl = null;
+try { gl = canvas.getContext('webgl', {alpha:false, antialias:true, depth:false, stencil:false, preserveDrawingBuffer:true, powerPreference:'high-performance'}); } catch(e){}
+if (!gl) return;
+
+function compile(type, src){
+  var s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { return null; }
+  return s;
+}
+function program(vs, fs){
+  var p = gl.createProgram();
+  gl.attachShader(p, vs); gl.attachShader(p, fs);
+  gl.linkProgram(p);
+  return gl.getProgramParameter(p, gl.LINK_STATUS) ? p : null;
+}
+
+// fade quad: paints translucent background over the previous
+// frame so line segments accumulate into long smooth filaments
+var fadeVS = compile(gl.VERTEX_SHADER, 'attribute vec2 p; void main(){ gl_Position = vec4(p,0.0,1.0); }');
+var fadeFS = compile(gl.FRAGMENT_SHADER,
+  'precision mediump float; uniform vec4 uCol;' +
+  'void main(){ gl_FragColor = uCol; }');
+var fadeProg = fadeVS && fadeFS ? program(fadeVS, fadeFS) : null;
+
+// line pass: each particle draws prev -> current as a filament
+var lineVS = compile(gl.VERTEX_SHADER,
+  'attribute vec4 aPos; attribute float aEnd; attribute vec3 aCol;' +
+  'varying vec3 vCol; varying float vEnd;' +
+  'void main(){' +
+  '  vec2 xy = mix(aPos.xy, aPos.zw, aEnd);' +
+  '  gl_Position = vec4(xy*2.0-1.0, 0.0, 1.0);' +
+  '  vCol = aCol; vEnd = aEnd;' +
+  '}');
+var lineFS = compile(gl.FRAGMENT_SHADER,
+  'precision mediump float; varying vec3 vCol; varying float vEnd;' +
+  'void main(){' +
+  '  float a = 0.5 + 0.5*vEnd;' +
+  '  gl_FragColor = vec4(vCol*a, 1.0);' +
+  '}');
+var lineProg = lineVS && lineFS ? program(lineVS, lineFS) : null;
+if (!fadeProg || !lineProg) return;
+if (window) window.__AIR_OK = 'linked';
+
+var quad = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+
+// ---------------- state ----------------
+var N = 2100;
+var px = new Float32Array(N), py = new Float32Array(N);
+var ox = new Float32Array(N), oy = new Float32Array(N);
+var spd = new Float32Array(N), warm = new Float32Array(N);
+var posData = new Float32Array(N*2*4);   // per line: 2 verts x (x0,y0,x1,y1)
+var endData = new Float32Array(N*2);
+var colData = new Float32Array(N*2*3);
+var aspect = 1;
+
+function resetParticle(i, anywhere){
+  px[i] = anywhere ? Math.random()*1.3-0.15 : -0.05-Math.random()*0.1;
+  py[i] = Math.random();
+  ox[i] = px[i]; oy[i] = py[i];
+}
+function seedAll(){ for (var i=0;i<N;i++){ resetParticle(i, true); spd[i]=0.35+Math.random()*0.9; warm[i]=Math.random(); } }
+seedAll();
+
+var lineBuf = gl.createBuffer();
+var endBuf  = gl.createBuffer();
+var colBuf  = gl.createBuffer();
+
+var aPos = gl.getAttribLocation(lineProg,'aPos');
+var aEnd = gl.getAttribLocation(lineProg,'aEnd');
+var aCol = gl.getAttribLocation(lineProg,'aCol');
+var uCol = gl.getUniformLocation(fadeProg,'uCol');
+
+var DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+var W = 0, H = 0;
+function resize(){
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.round(W*DPR); canvas.height = Math.round(H*DPR);
+  aspect = W/H;
+  gl.viewport(0,0,canvas.width,canvas.height);
+  paintBase();
+}
+function paintBase(){
+  gl.disable(gl.BLEND);
+  gl.clearColor(13/255, 16/255, 23/255, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+}
+
+// pointer pole (magnetic): eased position + strength decay when idle
+var mx = 0.5, my = 0.5, tmx = 0.5, tmy = 0.5;
+var pole = 0, lastMove = 0;
+window.addEventListener('pointermove', function(e){
+  tmx = e.clientX / W; tmy = 1 - e.clientY / H;
+  lastMove = performance.now();
+}, {passive:true});
+window.addEventListener('pointerleave', function(){ lastMove = -9999; });
+
+// flow field: layered analytic curls - smooth, swirly, cheap
+function fieldX(x, y, t){
+  return Math.sin(x*2.7 + t*0.32)*Math.cos(y*3.6 - t*0.21)
+       + 0.62*Math.sin(y*6.1 + t*0.16)
+       + 0.28*Math.sin((x+y)*4.4 - t*0.24);
+}
+function fieldY(x, y, t){
+  return Math.cos(x*2.3 - t*0.27)*Math.sin(y*2.9 + t*0.29)
+       - 0.62*Math.sin(x*4.9 - t*0.19)
+       + 0.28*Math.cos((x-y)*3.7 + t*0.22);
+}
+
+var running = true;
+var heroVisible = true;
+if ('IntersectionObserver' in window){
+  new IntersectionObserver(function(es){
+    es.forEach(function(e){ heroVisible = e.isIntersecting; });
+  }, {rootMargin:'100px'}).observe(document.querySelector('.hero'));
+}
+document.addEventListener('visibilitychange', function(){ running = !document.hidden; });
+
+var last = performance.now();
+var t0 = last;
+
+function frame(now){
+  requestAnimationFrame(frame);
+  if (!running || !heroVisible) { last = now; return; }
+  var dt = Math.min((now-last)/1000, 0.05);
+  last = now;
+  var t = (now-t0)/1000;
+
+  // ease pole
+  mx += (tmx-mx)*0.08; my += (tmy-my)*0.08;
+  var target = (now-lastMove < 2200) ? 1 : 0;
+  pole += (target-pole)*0.05;
+
+  // simulate
+  for (var i=0;i<N;i++){
+    var x = px[i]*aspect, y = py[i];
+    var vx = fieldX(x,y,t)*0.16*spd[i] + 0.052*spd[i];
+    var vy = fieldY(x,y,t)*0.16*spd[i];
+    if (pole > 0.01){
+      var dx = (mx*aspect - x), dy = (my - y);
+      var d2 = dx*dx + dy*dy;
+      var inf = Math.exp(-d2*9.0)*pole*1.35;
+      vx += (-dy)*inf*3.2/(Math.sqrt(d2)+0.05);
+      vy += ( dx)*inf*3.2/(Math.sqrt(d2)+0.05);
+    }
+    ox[i]=px[i]; oy[i]=py[i];
+    px[i]+=vx*dt; py[i]+=vy*dt;
+    if (px[i]>1.12 || py[i]<-0.12 || py[i]>1.12) resetParticle(i,false);
+    if (px[i]<-0.12) px[i]=-0.12;
+  }
+
+  // fill GPU buffers
+  for (var i=0;i<N;i++){
+    var b=i*8, e=i*6;
+    var al = 0.16+0.20*warm[i]*spd[i];
+    var r = 0.55+0.45*warm[i], g = 0.62+0.02*warm[i], bl = 0.72-0.58*warm[i];
+    posData[b]  =ox[i]; posData[b+1]=oy[i]; posData[b+2]=px[i]; posData[b+3]=py[i];
+    posData[b+4]=ox[i]; posData[b+5]=oy[i]; posData[b+6]=px[i]; posData[b+7]=py[i];
+    endData[i*2]=0; endData[i*2+1]=1;
+    colData[e]  =r*al; colData[e+1]=g*al; colData[e+2]=bl*al;
+    colData[e+3]=r*al; colData[e+4]=g*al; colData[e+5]=bl*al;
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, posData, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, endBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, endData, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, colBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, colData, gl.DYNAMIC_DRAW);
+
+  // 1) fade previous frame toward background
+  gl.useProgram(fadeProg);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+  var fp = gl.getAttribLocation(fadeProg,'p');
+  gl.enableVertexAttribArray(fp);
+  gl.vertexAttribPointer(fp,2,gl.FLOAT,false,0,0);
+  gl.uniform4f(uCol, 13/255,16/255,23/255, 0.082);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  gl.disableVertexAttribArray(fp);
+
+  // 2) additive streamlines
+  gl.useProgram(lineProg);
+  gl.blendFunc(gl.ONE, gl.ONE);
+  gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf);
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos,4,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, endBuf);
+  gl.enableVertexAttribArray(aEnd);
+  gl.vertexAttribPointer(aEnd,1,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, colBuf);
+  gl.enableVertexAttribArray(aCol);
+  gl.vertexAttribPointer(aCol,3,gl.FLOAT,false,0,0);
+  gl.drawArrays(gl.LINES,0,N*2);
+  gl.disableVertexAttribArray(aPos);
+  gl.disableVertexAttribArray(aEnd);
+  gl.disableVertexAttribArray(aCol);
+}
+
+resize();
+window.addEventListener('resize', resize);
+requestAnimationFrame(frame);
+if (window) window.__AIR_OK = 'running';
+})();
+</script>

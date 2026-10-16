@@ -1,0 +1,84 @@
+
+<script>
+// ============================================================
+// UI behaviour: reveal, nav, FAQ, booking -> Stripe payment links
+// ============================================================
+(function(){
+'use strict';
+
+// live payment links (restricted key catalog, livemode verified)
+var LINKS = {
+  9900:  'https://buy.stripe.com/aFa00c1eAfcZ530cgL5os0a',   // $99 deposit
+  18900: 'https://buy.stripe.com/3cIfZae1m9SFdzwgx15os0b'    // $189 annual
+};
+
+// ---- reveal ----
+var fx = document.querySelectorAll('.fx');
+if ('IntersectionObserver' in window){
+  var io = new IntersectionObserver(function(es){
+    es.forEach(function(e){ if (e.isIntersecting){ e.target.classList.add('on'); io.unobserve(e.target); } });
+  }, {threshold:0.06});
+  fx.forEach(function(el){ io.observe(el); });
+  setTimeout(function(){ fx.forEach(function(el){ el.classList.add('on'); }); }, 3000);
+} else {
+  fx.forEach(function(el){ el.classList.add('on'); });
+}
+
+// ---- nav ----
+var nav = document.getElementById('nav');
+var prev = 0;
+window.addEventListener('scroll', function(){
+  var y = window.scrollY;
+  nav.classList.toggle('hide', y > prev && y > 300);
+  prev = y;
+}, {passive:true});
+
+// ---- FAQ ----
+document.querySelectorAll('.faq-item').forEach(function(item){
+  var q = item.querySelector('.faq-q');
+  if (q) q.addEventListener('click', function(){ item.classList.toggle('open'); });
+});
+
+// ---- smooth anchors ----
+document.querySelectorAll('a[href^="#"]').forEach(function(a){
+  a.addEventListener('click', function(e){
+    var t = document.querySelector(a.getAttribute('href'));
+    if (t){ e.preventDefault(); t.scrollIntoView({behavior:'smooth', block:'start'}); }
+  });
+});
+
+// ---- payments ----
+var TEL = 'tel:+61450265046';
+function gotoStripe(amountCents, email){
+  var url = LINKS[amountCents];
+  if (!url){ callNotice(); return; }
+  if (email) url += '?prefilled_email=' + encodeURIComponent(email);
+  window.location.href = url;
+}
+function callNotice(){
+  var n = document.createElement('div');
+  n.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0D1017;border:1px solid #F1A21E;color:#F2EFE7;padding:.9rem 1.4rem;font-size:.85rem;z-index:99;max-width:90vw';
+  n.textContent = 'Calling 0450 265 046 - quote first, pay nothing until you approve it';
+  document.body.appendChild(n);
+  setTimeout(function(){ n.remove(); }, 6000);
+  window.location.href = TEL;
+}
+
+window.airxpert = {
+  pay: function(sku, amountCents, label){
+    gotoStripe(amountCents, null);
+  },
+  book: function(e){
+    e.preventDefault();
+    var email = (document.getElementById('email') || {}).value || '';
+    var svc = (document.getElementById('service') || {}).value || 'repair';
+    var amount = (svc === 'annual') ? 18900 : 9900;
+    gotoStripe(amount, email);
+    return false;
+  }
+};
+})();
+</script>
+
+</body>
+</html>

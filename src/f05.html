@@ -1,0 +1,106 @@
+
+<!-- NAV -->
+<nav class="nav" id="nav">
+  <div class="wrap nav-row">
+    <a href="#top" class="logo">
+      <span class="logo-mark">
+        <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 6 L22 14 L18 18 L14 14 L14 6" fill="currentColor"/>
+          <rect x="13" y="18" width="10" height="1.5"/>
+          <path d="M16 19.5 L16 26" stroke-width="2.5"/>
+          <rect x="13" y="26" width="10" height="2.5" fill="currentColor"/>
+        </svg>
+      </span>
+      <span class="logo-text">airxpert<small>mechanical</small></span>
+    </a>
+    <div class="nav-r">
+      <a href="#services">Services</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#reviews">Reviews</a>
+      <a href="#coverage">Coverage</a>
+      <a href="#faq">FAQ</a>
+      <a href="tel:+61450265046" class="nav-call">0450 265 046</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero" id="top">
+  <div class="wrap hero-inner">
+    <div class="fx">
+      <div class="eyebrow">Sydney · NSW 2000 · Same-day metro</div>
+      <h1>The mechanical fix.<br>Not the <em>call-centre</em> one.</h1>
+      <p class="lead">Ten years in trade. ARC-tick licensed. <strong>4-hour cool-home guarantee</strong> - if we don't deliver within 4 hours of arriving, your deposit is back. Same-day service across Sydney metro and the inner west.</p>
+      <div class="hero-cta">
+        <a href="#book" class="btn btn-primary">Book Deposit · $99</a>
+        <a href="tel:+61450265046" class="btn btn-ghost">Call 0450 265 046</a>
+      </div>
+      <div class="trust-line">
+        <b>2,400+ homes &amp; businesses</b> <span class="tdot"></span> 4.9 / 5 <b>Google reviews</b> <span class="tdot"></span> Same-day in 95% of metro
+      </div>
+    </div>
+
+    <form class="hero-form fx" id="book" onsubmit="return airxpert.book(event)">
+      <h2>Book · Deposit $99 · Same-day</h2>
+      <div class="field-row">
+        <div class="field">
+          <label for="postcode">Postcode</label>
+          <input type="text" id="postcode" maxlength="4" inputmode="numeric" placeholder="2000" required>
+        </div>
+        <div class="field">
+          <label for="service">Service</label>
+          <select id="service" required>
+            <option value="repair">Repair · Emergency</option>
+            <option value="service">Service · Clean + Regas</option>
+            <option value="install">Install · Split</option>
+            <option value="install-ducted">Install · Ducted</option>
+            <option value="annual">Annual Plan · $189/yr</option>
+            <option value="quote">Free Quote · Big install</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="when">When</label>
+          <select id="when" required>
+            <option value="asap">Today / ASAP</option>
+            <option value="tomorrow">Tomorrow</option>
+            <option value="this-week">This week</option>
+            <option value="next-week">Next week</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" autocomplete="email" placeholder="you@example.com" required>
+        </div>
+      </div>
+      <div class="field">
+        <label for="name">Name</label>
+        <input type="text" id="name" autocomplete="name" placeholder="Your full name" required>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit" id="book-submit">
+        Confirm · Pay $99 Deposit (Stripe)
+      </button>
+      <div class="deposit-note">
+        <b>$99 deposit · redeemable</b> · refundable same-day if we can't fit you in
+      </div>
+      <div class="form-foot">
+        <span>No spam · Trade direct</span>
+        <span class="secure">Stripe · 256-bit</span>
+      </div>
+      <input type="hidden" id="amount-cents" value="9900">
+    </form>
+  </div>
+</header>
+
+<!-- STATS -->
+<section class="stats fx">
+  <div class="wrap">
+    <div class="stats-row">
+      <div class="stat"><div class="stat-num">2,400<b>+</b></div><div class="stat-label">Homes &amp; Trade Work</div></div>
+      <div class="stat"><div class="stat-num">4.9<b>/5</b></div><div class="stat-label">Google · verified</div></div>
+      <div class="stat"><div class="stat-num">4<b>hr</b></div><div class="stat-label">To Cool · Or Deposit Back</div></div>
+      <div class="stat"><div class="stat-num">0<b>hidden</b></div><div class="stat-label">Fee · Quoted in writing</div></div>
+    </div>
+  </div>
+</section>
